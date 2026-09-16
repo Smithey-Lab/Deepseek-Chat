@@ -1,0 +1,10 @@
+name: Bug report
+description: Report a problem with DeepSeek Workspace
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include reproduction steps, expected behavior, and app version. Never include API keys or tokens.
+    validations:
+      required: true

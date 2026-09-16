@@ -2,16 +2,22 @@
 
 A Windows desktop workspace for DeepSeek conversations and a deliberate GitHub coding workflow: edit on `dev`, review with Codex, then merge into `main`.
 
-## First milestone
+## v0.2 workspace
 
 - Chat using your own DeepSeek API key; refresh available models from your account.
 - Local conversation history, cancellation, and copyable code responses.
-- Browse UTF-8 files on a GitHub repository's `dev` branch.
+- Discover repositories from your GitHub account, search/filter/favorite them, and pick a branch without typing repository names.
+- Browse UTF-8 files on any branch; edits and commits stay restricted to `dev`. Create a missing `dev` branch after confirmation.
+- Recover editor drafts (including new files) from the Saved editor drafts list, with autosave across restarts.
+- Search, rename, pin, archive, import, and export conversations; keep separate message drafts and model selections.
+- Inspect recent commits, compare branches, and open pull requests for review.
 - Attach editor contents to a chat draft; review before/after contents and explicitly commit a file to `dev`.
 - Windows NSIS installer and in-app update checks, download, and restart/install.
 - Sandboxed renderer, narrow validated IPC, fixed API hosts, and Windows-encrypted credentials.
 
-The assistant does not execute commands or commit autonomously. This first milestone supports single-file edits, not local repository cloning, multi-file agent plans, terminal execution, or automatic Codex review. These are future milestones.
+The full [57-feature acceptance checklist](docs/FEATURES-v0.2.md) documents this release. The assistant does not execute commands or commit autonomously. This release supports single-file edits, not local repository cloning, multi-file agent plans, terminal execution, or automatic Codex review.
+
+In **GitHub & code**, click **Load repositories**, choose a repository, then **Open repository**. Choose **dev** for editing. Other branches are read-only. In **Settings**, use the connection tests to check credentials independently. Repository lists reflect the token's access; organization approval and repository permissions still apply.
 
 ## Development
 
@@ -46,7 +52,7 @@ After reviewed changes land on `main`, run:
 
 ```powershell
 # First release or explicit version:
-powershell -File scripts/release.ps1 -Version 0.1.0
+powershell -File scripts/release.ps1 -Version 0.2.0
 # Subsequent patch release, based on the latest published version:
 npm run release:patch
 ```
@@ -57,11 +63,11 @@ In the installed app, use **Settings & updates → Check for updates → Downloa
 
 ## Data and boundaries
 
-Credentials are encrypted using Electron `safeStorage` (Windows DPAPI) and are never returned to the renderer. Conversations are readable JSON in `%APPDATA%/DeepSeek Workspace` (development may use the package name). Deleting a conversation removes it from local history. Removing credentials does not revoke them at their providers. Messages and explicitly attached files are sent to DeepSeek; GitHub operations go directly to GitHub. Editor drafts are not persisted: save or commit before closing. Remote content is displayed as text and never executed. Commits use GitHub file SHAs so concurrent changes fail instead of being silently overwritten.
+Credentials are encrypted using Electron `safeStorage` (Windows DPAPI) and are never returned to the renderer. Conversations and editor drafts are readable JSON in `%APPDATA%/DeepSeek Workspace` (development may use the package name). Deleting a conversation removes it from local history. Removing credentials does not revoke them at their providers. Messages and explicitly attached files are sent to DeepSeek; GitHub operations go directly to GitHub. Drafts autosave locally; Ctrl+S flushes an editor draft. Closing flushes pending saves. Remote content is displayed as text and never executed. Commits use GitHub file SHAs so concurrent changes fail instead of silently overwriting remote changes. Token estimates and line-change counts are approximate.
 
 ## Roadmap
 
-1. Streaming responses, richer Markdown/code rendering, and conversation export.
-2. Repository selection, local clones, multi-file proposals, and patch review.
+1. Streaming responses and richer Markdown rendering.
+2. Local clones, multi-file proposals, and patch review.
 3. Explicitly approved tools, sandboxed execution, and test feedback.
 4. Signed releases and end-to-end update testing across two published versions.

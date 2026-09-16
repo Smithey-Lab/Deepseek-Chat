@@ -5,6 +5,7 @@ const {
   safeStorage,
   dialog,
   session,
+  shell,
 } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -16,7 +17,9 @@ const {
   filePath,
   commitInput,
   chatInput,
+  branchRef,
 } = require('./core.cjs');
+const { registerServices } = require('./services.cjs');
 if (!app.isPackaged && process.env.DEEPSEEK_TEST_DATA) {
   app.setPath('userData', process.env.DEEPSEEK_TEST_DATA);
 }
@@ -26,10 +29,17 @@ let window,
   updateReady = false;
 const page = pathToFileURL(path.join(__dirname, 'index.html')).href;
 const dataFile = (name) => path.join(app.getPath('userData'), name);
-async function atomicWrite(name, content) {
-  await fs.mkdir(app.getPath('userData'), { recursive: true });
-  await fs.writeFile(dataFile(`${name}.tmp`), content);
-  await fs.rename(dataFile(`${name}.tmp`), dataFile(name));
+const writes = new Map();
+function atomicWrite(name, content) {
+  const job = (writes.get(name) || Promise.resolve())
+    .catch(() => {})
+    .then(async () => {
+      await fs.mkdir(app.getPath('userData'), { recursive: true });
+      await fs.writeFile(dataFile(`${name}.tmp`), content);
+      await fs.rename(dataFile(`${name}.tmp`), dataFile(name));
+    });
+  writes.set(name, job);
+  return job;
 }
 async function readJson(name, fallback) {
   try {
@@ -77,10 +87,22 @@ async function request(service, endpoint, options = {}) {
       signal: options.signal || AbortSignal.timeout(60000),
     },
   );
-  if (!response.ok)
-    throw new Error(
-      `${service} request failed (${response.status}). ${response.status === 409 ? 'The file changed remotely. Reload before committing.' : response.status === 404 ? 'Repository, dev branch, or file not found. Check access and create dev first.' : 'Check credentials, permissions, model, and account limits.'}`,
+  if (!response.ok) {
+    const hints = {
+      401: 'Credential rejected. Update your saved key or token.',
+      403: 'Access denied or rate limit reached. Check token repository permissions and try again later.',
+      404: 'Repository, branch, or file not found. Check access and branch selection.',
+      409: 'Remote content changed or this repository is empty. Reload before committing.',
+      422: 'GitHub rejected the change. The branch or file may already exist; reload and review.',
+      429: 'Rate limit reached. Wait before retrying.',
+      402: 'DeepSeek balance is insufficient.',
+    };
+    const error = new Error(
+      `${service} request failed (${response.status}). ${hints[response.status] || 'Service unavailable. Try again later.'}`,
     );
+    error.status = response.status;
+    throw error;
+  }
   return response.json();
 }
 function updateStatus(message) {
@@ -90,6 +112,16 @@ function updateStatus(message) {
 app
   .whenReady()
   .then(async () => {
+    registerServices({
+      handle,
+      request,
+      readJson,
+      atomicWrite,
+      getWindow: () => window,
+      dialog,
+      shell,
+      app,
+    });
     const encrypted = await readJson('credentials.json', {});
     for (const name of ['deepseek', 'github']) {
       if (encrypted[name])
@@ -165,7 +197,7 @@ app
       const location = input.path ? '/' + filePath(input.path) : '';
       const result = await request(
         'github',
-        `/repos/${repo}/contents${location}?ref=dev`,
+        `/repos/${repo}/contents${location}?ref=${encodeURIComponent(branchRef(input.ref))}`,
       );
       if (!Array.isArray(result)) throw new Error('Choose a directory.');
       return result
@@ -175,7 +207,7 @@ app
     handle('github:read', async (input) => {
       const result = await request(
         'github',
-        `/repos/${repoName(input.repo)}/contents/${filePath(input.path)}?ref=dev`,
+        `/repos/${repoName(input.repo)}/contents/${filePath(input.path)}?ref=${encodeURIComponent(branchRef(input.ref))}`,
       );
       if (
         result.type !== 'file' ||
@@ -192,7 +224,13 @@ app
       }
       if (content.includes('\0'))
         throw new Error('Binary files cannot be edited.');
-      return { content, sha: result.sha, path: result.path, repo: input.repo };
+      return {
+        content,
+        sha: result.sha,
+        path: result.path,
+        repo: input.repo,
+        ref: branchRef(input.ref),
+      };
     });
     handle('github:commit', async (input) => {
       const body = commitInput(input);

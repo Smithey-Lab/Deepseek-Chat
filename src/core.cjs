@@ -1,4 +1,16 @@
 const DEV_BRANCH = 'dev';
+function branchRef(value = 'dev') {
+  text(value, 'Branch', 250);
+  if (
+    !/^[\w./-]+$/.test(value) ||
+    value.includes('..') ||
+    value.startsWith('/') ||
+    value.endsWith('/') ||
+    value.includes('//')
+  )
+    throw new Error('Invalid branch name.');
+  return value;
+}
 function text(value, label, max = 100000) {
   if (typeof value !== 'string' || !value.trim() || value.length > max) {
     throw new Error(
@@ -8,7 +20,11 @@ function text(value, label, max = 100000) {
   return value;
 }
 function repoName(value) {
-  if (typeof value !== 'string' || !/^[\w.-]+\/[\w.-]+$/.test(value))
+  if (
+    typeof value !== 'string' ||
+    !/^[a-zA-Z0-9][a-zA-Z0-9-]*\/[\w.-]+$/.test(value) ||
+    /^\.+$/.test(value.split('/')[1])
+  )
     throw new Error('Use owner/repository.');
   return value;
 }
@@ -80,4 +96,5 @@ module.exports = {
   filePath,
   commitInput,
   chatInput,
+  branchRef,
 };

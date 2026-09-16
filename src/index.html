@@ -20,14 +20,17 @@
       <p class="eyebrow">WORKSPACE</p>
       <nav>
         <button data-view="chat" class="nav active">
-          ◉ &nbsp; Conversations</button
-        ><button data-view="code" class="nav">⌘ &nbsp; GitHub & code</button
-        ><button data-view="settings" class="nav">
+          ◉ &nbsp; Conversations
+        </button>
+        <button data-view="code" class="nav">⌘ &nbsp; GitHub & code</button>
+        <button data-view="settings" class="nav">
           ⚙ &nbsp; Settings & updates
         </button>
       </nav>
       <p class="eyebrow">RECENT CHATS</p>
       <div id="chat-list"></div>
+      <p class="eyebrow">FILTER CHATS</p>
+      <input id="chat-search" placeholder="Search conversations…" />
       <div class="sidebar-footer">
         <span class="dot"></span> Local workspace
         <p>Your ideas. Your API. Your workflow.</p>
@@ -39,7 +42,13 @@
           <span class="eyebrow">SMITHEY LAB / DESKTOP</span>
           <h1 id="page-title">Conversations</h1>
         </div>
-        <span class="badge">dev-first workflow</span>
+        <div class="toolbar">
+          <button id="toggle-theme" type="button" title="Toggle theme">
+            Theme</button
+          ><button id="toggle-density" type="button" title="Toggle density">
+            Density</button
+          ><button id="help" type="button" title="Help (Ctrl+?)">?</button>
+        </div>
       </header>
       <div id="status" role="status" aria-live="polite">
         Welcome. Add your API key in Settings to begin.
@@ -48,35 +57,51 @@
         <div class="toolbar">
           <label
             >Model
-            <select id="model">
-              <option value="deepseek-chat">deepseek-chat</option>
-              <option value="deepseek-reasoner">deepseek-reasoner</option>
-            </select></label
-          ><button id="refresh-models">Refresh models</button
-          ><button id="delete-chat" class="quiet">Delete conversation</button>
+            <select id="model"></select
+          ></label>
+          <button id="refresh-models" type="button">Refresh models</button>
+          <button id="delete-chat" class="quiet" type="button">
+            Delete conversation
+          </button>
+          <button id="pin-chat" type="button">Pin</button>
+          <button id="archive-chat" type="button">Archive</button>
+          <button id="rename-chat" type="button">Rename</button>
+          <label class="inline"
+            ><input type="checkbox" id="show-archived" /> Show archived</label
+          >
         </div>
         <div id="messages" aria-live="polite"></div>
+        <div class="toolbar templates">
+          <button type="button" data-template="Explain">Explain</button>
+          <button type="button" data-template="Review">Review</button>
+          <button type="button" data-template="Tests">Tests</button>
+          <button type="button" data-template="Refactor">Refactor</button>
+        </div>
         <form id="chat-form" class="composer">
-          <label for="prompt" class="sr-only">Message DeepSeek</label
-          ><textarea
+          <label for="prompt" class="sr-only">Message DeepSeek</label>
+          <textarea
             id="prompt"
             placeholder="Ask a question, explore an idea, or work through code…"
             rows="3"
             required
           ></textarea>
           <div class="composer-footer">
-            <span>Ctrl + Enter to send · Responses may take a moment</span>
+            <span id="prompt-meta">Ctrl + Enter to send</span>
             <div>
-              <button id="stop" type="button" hidden>Stop</button
-              ><button id="send" class="primary" type="submit">
+              <button id="retry" type="button" hidden>Retry</button>
+              <button id="export-json" type="button">Export JSON</button>
+              <button id="export-md" type="button">Export Markdown</button>
+              <button id="import-chat" type="button">Import chat</button>
+              <button id="stop" type="button" hidden>Stop</button>
+              <button id="send" class="primary" type="submit">
                 Send message ↗
               </button>
             </div>
           </div>
         </form>
         <p class="footnote">
-          Messages and attached code are sent to DeepSeek. Review generated code
-          before committing.
+          Messages and attached code are sent to DeepSeek only when you send.
+          Review generated code before committing.
         </p>
       </section>
       <section id="code-view" class="view" hidden>
@@ -90,21 +115,70 @@
         <div class="toolbar">
           <label class="grow"
             >Repository
-            <input
-              id="repo"
-              placeholder="owner/repository"
-              value="Smithey-Lab/Deepseek-Chat" /></label
-          ><span class="badge">branch: dev</span
-          ><button id="browse" class="primary">Open repository</button>
+            <select id="repo"></select
+          ></label>
+          <label class="grow"
+            >Branches
+            <select id="branch"></select
+          ></label>
+          <span class="badge" id="repo-badge">—</span>
+        </div>
+        <div class="toolbar">
+          <button id="load-repos" class="primary" type="button">
+            Load repositories
+          </button>
+          <button id="load-more-repos" type="button">Load more repos</button>
+          <button id="browse" type="button">Open repository</button>
+          <input id="repo-filter" placeholder="Search repositories…" />
+          <select id="owner-filter">
+            <option value="">All owners</option>
+          </select>
+          <select id="visibility-filter">
+            <option value="">All</option>
+            <option value="public">Public</option>
+            <option value="private">Private</option>
+          </select>
+          <label class="inline"
+            ><input type="checkbox" id="hide-archived" checked /> Hide
+            archived</label
+          >
+          <select id="repo-sort">
+            <option value="name">Name</option>
+            <option value="recent">Recent</option>
+          </select>
+          <button id="favorite-repo" type="button">★ Favorite</button>
+        </div>
+        <div class="toolbar">
+          <button id="create-dev" type="button">Create dev from branch</button>
+          <button id="open-repo" type="button">Open repo on GitHub</button>
+          <button id="load-branches" type="button">Load branches</button>
+          <button id="load-more-branches" type="button">More branches</button>
+          <span class="badge" id="branch-fallback" hidden
+            >read-only (default)</span
+          >
         </div>
         <div class="code-layout">
           <div class="file-panel">
+            <details open>
+              <summary>Saved editor drafts</summary>
+              <div id="saved-drafts"></div>
+            </details>
+            <details>
+              <summary>Favorite repositories</summary>
+              <div id="favorite-list"></div>
+            </details>
+            <details>
+              <summary>Recent repositories</summary>
+              <div id="recent-list"></div>
+            </details>
             <div class="file-heading">
               <span id="directory">/</span
-              ><button id="up" title="Parent directory">↑</button>
+              ><button id="up" title="Parent directory" type="button">↑</button>
             </div>
+            <input id="file-filter" placeholder="Filter files…" />
+            <div id="breadcrumb" class="breadcrumb"></div>
             <div id="files">
-              <p class="muted">Open a repository to browse its dev branch.</p>
+              <p class="muted">Open a repository to browse.</p>
             </div>
           </div>
           <div class="editor-panel">
@@ -112,16 +186,37 @@
               >File path <input id="file-path" placeholder="src/example.js"
             /></label>
             <div class="toolbar">
-              <button id="new-file">New file</button
-              ><button id="attach">Attach editor to chat</button
-              ><button id="review">Review changes</button>
+              <button id="new-file" type="button">New file</button>
+              <button id="attach" type="button">Attach editor to chat</button>
+              <button id="review" type="button">Review changes</button>
+              <button id="dirty-indicator" type="button" disabled>Clean</button>
+              <button id="revert" type="button">Revert</button>
+              <button id="reload" type="button">Reload from GitHub</button>
+              <button id="copy-path" type="button">Copy path</button>
+              <button id="open-file" type="button">Open on GitHub</button>
+              <button id="find-open" type="button">Find</button>
+              <button id="tab-indent" type="button">Tab: spaces</button>
+              <button id="wrap-toggle" type="button">Wrap: off</button>
+              <label class="inline"
+                >Font
+                <input
+                  id="font-size"
+                  type="number"
+                  min="10"
+                  max="24"
+                  value="13"
+              /></label>
             </div>
-            <label for="editor" class="sr-only">File contents</label
-            ><textarea
+            <label for="editor" class="sr-only">File contents</label>
+            <textarea
               id="editor"
               spellcheck="false"
               placeholder="Select a UTF-8 file, or enter a path for a new file."
             ></textarea>
+            <div class="meta-row">
+              <span id="editor-meta">0 chars · 0 lines</span
+              ><span id="draft-status"></span>
+            </div>
             <div id="diff" hidden>
               <div>
                 <h3>Before</h3>
@@ -136,10 +231,23 @@
               >Commit message
               <input
                 id="commit-message"
-                placeholder="feat: describe your change" /></label
-            ><button id="commit" class="primary">
+                placeholder="feat: describe your change"
+            /></label>
+            <button id="commit" class="primary" type="button">
               Commit reviewed changes to dev
             </button>
+            <div class="toolbar">
+              <button id="load-commits" type="button">Commits</button>
+              <button id="load-compare" type="button">
+                Compare vs default
+              </button>
+              <button id="load-pulls" type="button">Pull requests</button>
+              <button id="open-pulls" type="button">Open PRs on GitHub</button>
+              <button id="open-compare" type="button">Open compare page</button>
+            </div>
+            <div id="commit-list" class="list-box"></div>
+            <div id="compare-box" class="list-box"></div>
+            <div id="pulls-box" class="list-box"></div>
           </div>
         </div>
       </section>
@@ -159,8 +267,9 @@
               type="password"
               id="deepseek-key"
               autocomplete="off"
-              placeholder="Enter a new key to save it" /></label
-          ><label
+              placeholder="Enter a new key to save it"
+          /></label>
+          <label
             >GitHub fine-grained access token
             <input
               type="password"
@@ -169,17 +278,35 @@
               placeholder="Repository contents: read and write"
           /></label>
           <p class="muted">
-            Grant access only to the repositories you want to work on. Blank
-            fields keep saved credentials.
+            Grant access only to repositories you want to work on. Blank fields
+            keep saved credentials. Settings below do not imply keys are
+            connected until you run a test.
           </p>
           <div class="toolbar">
-            <button class="primary" type="submit">Save connections</button
-            ><button id="clear-keys" type="button">
+            <button class="primary" type="submit">Save connections</button>
+            <button id="clear-keys" type="button">
               Remove saved credentials
             </button>
+            <button id="test-github" type="button">Test GitHub</button>
+            <button id="test-deepseek" type="button">Test DeepSeek</button>
           </div>
           <p id="connection-status"></p>
         </form>
+        <div class="card" id="setup-card">
+          <h3>First-run checklist</h3>
+          <label class="inline"
+            ><input type="checkbox" id="setup-1" /> Save DeepSeek key</label
+          >
+          <label class="inline"
+            ><input type="checkbox" id="setup-2" /> Save GitHub token</label
+          >
+          <label class="inline"
+            ><input type="checkbox" id="setup-3" /> Test connections</label
+          >
+          <label class="inline"
+            ><input type="checkbox" id="setup-4" /> Pick a favorite repo</label
+          >
+        </div>
         <div class="card">
           <h3>App updates <span id="version" class="badge"></span></h3>
           <p>
@@ -187,13 +314,28 @@
             app.
           </p>
           <div class="toolbar">
-            <button id="check-update">Check for updates</button
-            ><button id="download-update">Download update</button
-            ><button id="install-update">Restart & install</button>
+            <button id="check-update" type="button">Check for updates</button
+            ><button id="download-update" type="button">Download update</button
+            ><button id="install-update" type="button">
+              Restart & install
+            </button>
           </div>
           <p id="update-status" role="status">
             Check when you’re ready. Installation requires a restart.
           </p>
+          <p id="update-progress" class="muted"></p>
+        </div>
+        <div class="card">
+          <h3>Diagnostics & data</h3>
+          <div class="toolbar">
+            <button id="diagnostics" type="button">Show diagnostics</button
+            ><button id="open-data" type="button">Open data folder</button>
+          </div>
+          <pre id="diagnostics-out" class="list-box"></pre>
+        </div>
+        <div class="card">
+          <h3>Activity log</h3>
+          <div id="activity-box" class="list-box"></div>
         </div>
         <p class="muted">
           Conversation history is stored locally as readable JSON in your
@@ -202,6 +344,44 @@
         </p>
       </section>
     </main>
+    <dialog id="rename-dialog">
+      <form method="dialog" id="rename-form">
+        <h3>Rename conversation</h3>
+        <input id="rename-input" />
+        <div class="toolbar">
+          <button type="submit" class="primary">Save</button
+          ><button type="button" id="rename-cancel" formmethod="dialog">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="find-dialog">
+      <form method="dialog" id="find-form">
+        <h3>Find in file</h3>
+        <input id="find-input" />
+        <div class="toolbar">
+          <button type="submit" class="primary">Find next</button
+          ><button type="button" id="find-close">Close</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="help-dialog">
+      <form method="dialog">
+        <h3>Keyboard & help</h3>
+        <ul class="help-list">
+          <li>Ctrl+N — new conversation</li>
+          <li>Ctrl+K — focus chat search</li>
+          <li>Ctrl+Enter — send message</li>
+          <li>Ctrl+S — save editor draft</li>
+          <li>Ctrl+F — find in file</li>
+          <li>Ctrl+? — this help</li>
+        </ul>
+        <div class="toolbar">
+          <button type="submit" class="primary">Close</button>
+        </div>
+      </form>
+    </dialog>
     <script src="renderer.js"></script>
   </body>
 </html>

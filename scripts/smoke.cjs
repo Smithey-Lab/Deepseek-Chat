@@ -71,6 +71,8 @@ const path = require('node:path');
           body = [
             { name: 'hello.txt', path: 'hello.txt', type: 'file', size: 5 },
           ];
+        if (url.includes('/contents/hello.txt') && options.method !== 'PUT')
+          await globalThis.readGate;
         return { ok: true, json: async () => body };
       };
     });
@@ -85,9 +87,24 @@ const path = require('node:path');
     assert.equal(await page.locator('.message.assistant script').count(), 0);
     await page.locator('[data-view="code"]').click();
     await page.getByRole('button', { name: 'Open repository' }).click();
+    await desktop.evaluate(() => {
+      globalThis.readGate = new Promise((resolve) => {
+        globalThis.releaseRead = resolve;
+      });
+    });
     await page
       .getByRole('button', { name: '· hello.txt', exact: true })
       .click();
+    await page.waitForFunction(
+      () => document.getElementById('code-view').inert,
+    );
+    assert.equal(
+      await page.locator('#code-view').evaluate((element) => element.inert),
+      true,
+    );
+    await desktop.evaluate(() => {
+      globalThis.releaseRead();
+    });
     await page.waitForFunction(
       () => document.getElementById('editor').value === 'Hello',
     );

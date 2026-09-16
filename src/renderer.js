@@ -8,6 +8,20 @@ let chats = [],
   original = '',
   reviewed = null;
 let saveQueue = Promise.resolve();
+let codeBusy = false,
+  saving = 0,
+  allowClose = false;
+async function withCodeLock(action) {
+  if (codeBusy) throw new Error('Wait for the current repository operation.');
+  codeBusy = true;
+  $('code-view').inert = true;
+  try {
+    return await action();
+  } finally {
+    codeBusy = false;
+    $('code-view').inert = false;
+  }
+}
 const status = (message) => {
   $('status').textContent = message;
 };
@@ -32,9 +46,12 @@ function view(name) {
 for (const button of document.querySelectorAll('[data-view]'))
   button.onclick = () => view(button.dataset.view);
 function persist() {
+  saving++;
   const snapshot = JSON.parse(JSON.stringify(chats));
   saveQueue = saveQueue.catch(() => {}).then(() => api.saveChats(snapshot));
-  return saveQueue;
+  return saveQueue.finally(() => {
+    saving--;
+  });
 }
 function newChat() {
   current = {
@@ -222,18 +239,20 @@ async function browse(path = '') {
   )) {
     const button = document.createElement('button');
     button.textContent = `${file.type === 'dir' ? '▸' : '·'} ${file.name}`;
-    button.onclick = run(async () => {
-      if (file.type === 'dir') return browse(file.path);
-      if (!discard()) return;
-      opened = await api.read({ repo, path: file.path });
-      original = opened.content;
-      $('file-path').value = opened.path;
-      $('file-path').readOnly = true;
-      $('editor').value = original;
-      reviewed = null;
-      $('diff').hidden = true;
-      status(`Loaded ${repo}/${opened.path} from dev.`);
-    });
+    button.onclick = run(() =>
+      withCodeLock(async () => {
+        if (file.type === 'dir') return browse(file.path);
+        if (!discard()) return;
+        opened = await api.read({ repo, path: file.path });
+        original = opened.content;
+        $('file-path').value = opened.path;
+        $('file-path').readOnly = true;
+        $('editor').value = original;
+        reviewed = null;
+        $('diff').hidden = true;
+        status(`Loaded ${repo}/${opened.path} from dev.`);
+      }),
+    );
     $('files').append(button);
   }
   status(`Browsing ${repo}:dev.`);
@@ -243,8 +262,10 @@ function discard() {
     $('editor').value === original || confirm('Discard unsaved editor changes?')
   );
 }
-$('browse').onclick = run(() => browse());
-$('up').onclick = run(() => browse(folder.split('/').slice(0, -1).join('/')));
+$('browse').onclick = run(() => withCodeLock(() => browse()));
+$('up').onclick = run(() =>
+  withCodeLock(() => browse(folder.split('/').slice(0, -1).join('/'))),
+);
 $('new-file').onclick = () => {
   if (!discard()) return;
   opened = null;
@@ -281,30 +302,32 @@ $('review').onclick = () => {
     'Review the before and after contents below, then enter a commit message.',
   );
 };
-$('commit').onclick = run(async () => {
-  const input = proposal();
-  if (reviewed !== JSON.stringify(input))
-    throw new Error('Click Review changes after your latest edits.');
-  if (input.content === original && opened)
-    throw new Error('No changes to commit.');
-  $('commit').disabled = true;
-  try {
-    const result = await api.commit({
-      ...input,
-      message: $('commit-message').value.trim(),
-    });
-    if (result.cancelled) return;
-    opened = { ...input, sha: result.sha };
-    original = input.content;
-    reviewed = null;
-    $('file-path').readOnly = true;
-    status(
-      `Committed to ${input.repo}:dev. Open a dev → main pull request for Codex review.`,
-    );
-  } finally {
-    $('commit').disabled = false;
-  }
-});
+$('commit').onclick = run(() =>
+  withCodeLock(async () => {
+    const input = proposal();
+    if (reviewed !== JSON.stringify(input))
+      throw new Error('Click Review changes after your latest edits.');
+    if (input.content === original && opened)
+      throw new Error('No changes to commit.');
+    $('commit').disabled = true;
+    try {
+      const result = await api.commit({
+        ...input,
+        message: $('commit-message').value.trim(),
+      });
+      if (result.cancelled) return;
+      opened = { ...input, sha: result.sha };
+      original = input.content;
+      reviewed = null;
+      $('file-path').readOnly = true;
+      status(
+        `Committed to ${input.repo}:dev. Open a dev → main pull request for Codex review.`,
+      );
+    } finally {
+      $('commit').disabled = false;
+    }
+  }),
+);
 api.onUpdate((message) => {
   $('update-status').textContent = message;
 });
@@ -315,15 +338,36 @@ $('download-update').onclick = run(async () => {
   await api.downloadUpdate();
 });
 $('install-update').onclick = run(async () => {
+  if (busy || codeBusy)
+    throw new Error(
+      'Finish the active response or repository operation before installing.',
+    );
   if (confirm('Restart now? Save or commit any editor changes first.')) {
     await persist();
-    await api.installUpdate();
+    allowClose = true;
+    try {
+      await api.installUpdate();
+    } catch (error) {
+      allowClose = false;
+      throw error;
+    }
   }
 });
 window.addEventListener('beforeunload', (event) => {
-  if ($('editor').value !== original || busy || $('prompt').value.trim()) {
+  if (allowClose) return;
+  const pending = busy || codeBusy || saving > 0;
+  const dirty = $('editor').value !== original || $('prompt').value.trim();
+  if (
+    pending ||
+    (dirty &&
+      !confirm('Discard unsaved editor changes and message draft, then close?'))
+  ) {
     event.preventDefault();
     event.returnValue = '';
+    if (pending)
+      status(
+        'Wait for the current operation to finish, or stop the response, before closing.',
+      );
   }
 });
 run(async () => {

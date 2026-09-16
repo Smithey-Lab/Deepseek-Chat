@@ -28,6 +28,7 @@ foreach ($branch in @('main', 'dev')) {
   if ($LASTEXITCODE -ne 0) { throw "Could not protect $branch." }
 }
 Invoke-Gh api --method PUT "repos/$repo/vulnerability-alerts" --silent
+Invoke-Gh api --method PUT "repos/$repo/private-vulnerability-reporting" --silent
 @{ security_and_analysis = @{ secret_scanning = @{ status = 'enabled' }; secret_scanning_push_protection = @{ status = 'enabled' } } } | ConvertTo-Json -Depth 5 | gh api --method PATCH "repos/$repo" --input - --silent
 if ($LASTEXITCODE -ne 0) { throw 'Could not enable secret scanning.' }
 Write-Host 'Repository settings and main/dev protections applied.'

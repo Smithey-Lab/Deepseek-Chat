@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>DeepSeek Workspace</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-icon">D</span>
+        <div>DeepSeek<span class="subtle">WORKSPACE</span></div>
+      </div>
+      <button id="new-chat" class="primary">＋ New conversation</button>
+      <p class="eyebrow">WORKSPACE</p>
+      <nav>
+        <button data-view="chat" class="nav active">
+          ◉ &nbsp; Conversations</button
+        ><button data-view="code" class="nav">⌘ &nbsp; GitHub & code</button
+        ><button data-view="settings" class="nav">
+          ⚙ &nbsp; Settings & updates
+        </button>
+      </nav>
+      <p class="eyebrow">RECENT CHATS</p>
+      <div id="chat-list"></div>
+      <div class="sidebar-footer">
+        <span class="dot"></span> Local workspace
+        <p>Your ideas. Your API. Your workflow.</p>
+      </div>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <span class="eyebrow">SMITHEY LAB / DESKTOP</span>
+          <h1 id="page-title">Conversations</h1>
+        </div>
+        <span class="badge">dev-first workflow</span>
+      </header>
+      <div id="status" role="status" aria-live="polite">
+        Welcome. Add your API key in Settings to begin.
+      </div>
+      <section id="chat-view" class="view">
+        <div class="toolbar">
+          <label
+            >Model
+            <select id="model">
+              <option value="deepseek-chat">deepseek-chat</option>
+              <option value="deepseek-reasoner">deepseek-reasoner</option>
+            </select></label
+          ><button id="refresh-models">Refresh models</button
+          ><button id="delete-chat" class="quiet">Delete conversation</button>
+        </div>
+        <div id="messages" aria-live="polite"></div>
+        <form id="chat-form" class="composer">
+          <label for="prompt" class="sr-only">Message DeepSeek</label
+          ><textarea
+            id="prompt"
+            placeholder="Ask a question, explore an idea, or work through code…"
+            rows="3"
+            required
+          ></textarea>
+          <div class="composer-footer">
+            <span>Ctrl + Enter to send · Responses may take a moment</span>
+            <div>
+              <button id="stop" type="button" hidden>Stop</button
+              ><button id="send" class="primary" type="submit">
+                Send message ↗
+              </button>
+            </div>
+          </div>
+        </form>
+        <p class="footnote">
+          Messages and attached code are sent to DeepSeek. Review generated code
+          before committing.
+        </p>
+      </section>
+      <section id="code-view" class="view" hidden>
+        <div class="section-intro">
+          <h2>Build on dev. Review before main.</h2>
+          <p>
+            Browse a GitHub repository, bring a file into your conversation, and
+            review your changes before committing.
+          </p>
+        </div>
+        <div class="toolbar">
+          <label class="grow"
+            >Repository
+            <input
+              id="repo"
+              placeholder="owner/repository"
+              value="Smithey-Lab/Deepseek-Chat" /></label
+          ><span class="badge">branch: dev</span
+          ><button id="browse" class="primary">Open repository</button>
+        </div>
+        <div class="code-layout">
+          <div class="file-panel">
+            <div class="file-heading">
+              <span id="directory">/</span
+              ><button id="up" title="Parent directory">↑</button>
+            </div>
+            <div id="files">
+              <p class="muted">Open a repository to browse its dev branch.</p>
+            </div>
+          </div>
+          <div class="editor-panel">
+            <label
+              >File path <input id="file-path" placeholder="src/example.js"
+            /></label>
+            <div class="toolbar">
+              <button id="new-file">New file</button
+              ><button id="attach">Attach editor to chat</button
+              ><button id="review">Review changes</button>
+            </div>
+            <label for="editor" class="sr-only">File contents</label
+            ><textarea
+              id="editor"
+              spellcheck="false"
+              placeholder="Select a UTF-8 file, or enter a path for a new file."
+            ></textarea>
+            <div id="diff" hidden>
+              <div>
+                <h3>Before</h3>
+                <pre id="before"></pre>
+              </div>
+              <div>
+                <h3>After</h3>
+                <pre id="after"></pre>
+              </div>
+            </div>
+            <label
+              >Commit message
+              <input
+                id="commit-message"
+                placeholder="feat: describe your change" /></label
+            ><button id="commit" class="primary">
+              Commit reviewed changes to dev
+            </button>
+          </div>
+        </div>
+      </section>
+      <section id="settings-view" class="view" hidden>
+        <div class="section-intro">
+          <h2>Make this workspace yours.</h2>
+          <p>
+            Credentials stay on this Windows account, encrypted with Windows
+            data protection.
+          </p>
+        </div>
+        <form id="settings-form" class="card">
+          <h3>Connections</h3>
+          <label
+            >DeepSeek API key
+            <input
+              type="password"
+              id="deepseek-key"
+              autocomplete="off"
+              placeholder="Enter a new key to save it" /></label
+          ><label
+            >GitHub fine-grained access token
+            <input
+              type="password"
+              id="github-token"
+              autocomplete="off"
+              placeholder="Repository contents: read and write"
+          /></label>
+          <p class="muted">
+            Grant access only to the repositories you want to work on. Blank
+            fields keep saved credentials.
+          </p>
+          <div class="toolbar">
+            <button class="primary" type="submit">Save connections</button
+            ><button id="clear-keys" type="button">
+              Remove saved credentials
+            </button>
+          </div>
+          <p id="connection-status"></p>
+        </form>
+        <div class="card">
+          <h3>App updates <span id="version" class="badge"></span></h3>
+          <p>
+            Published GitHub releases deliver updates to the installed Windows
+            app.
+          </p>
+          <div class="toolbar">
+            <button id="check-update">Check for updates</button
+            ><button id="download-update">Download update</button
+            ><button id="install-update">Restart & install</button>
+          </div>
+          <p id="update-status" role="status">
+            Check when you’re ready. Installation requires a restart.
+          </p>
+        </div>
+        <p class="muted">
+          Conversation history is stored locally as readable JSON in your
+          Windows app-data folder. API credentials are encrypted separately.
+          Code is sent to DeepSeek only when you attach it and send a message.
+        </p>
+      </section>
+    </main>
+    <script src="renderer.js"></script>
+  </body>
+</html>

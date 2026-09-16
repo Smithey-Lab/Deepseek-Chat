@@ -1,0 +1,53 @@
+name: Release Windows app
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Stable version to publish, for example 0.1.1'
+        required: true
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  release:
+    name: Publish Windows release
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Set release version
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Use a stable x.y.z version.' }
+          $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not check existing releases.' }
+          foreach ($release in $releases) {
+            if ($release.tag_name -match '^v(\d+\.\d+\.\d+)$' -and [version]$Matches[1] -ge [version]$env:RELEASE_VERSION) { throw 'Version must be newer than existing releases.' }
+          }
+          npm version $env:RELEASE_VERSION --no-git-tag-version --allow-same-version
+          if ($LASTEXITCODE -ne 0) { throw 'Version update failed.' }
+      - run: npm ci
+      - run: npm run check
+      - run: npm run test:desktop
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run dist
+      - name: Publish installer and updater metadata
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          $assets = Get-ChildItem dist -File | Where-Object { $_.Name -match '\.(exe|blockmap)$' -or $_.Name -eq 'latest.yml' } | ForEach-Object FullName
+          if (-not (Test-Path dist/latest.yml)) { throw 'Updater metadata missing.' }
+          gh release create "v$env:RELEASE_VERSION" @assets --target $env:GITHUB_SHA --title "DeepSeek Workspace $env:RELEASE_VERSION" --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed.' }

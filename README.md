@@ -39,7 +39,8 @@ In **Settings & updates**, save a DeepSeek API key and a GitHub fine-grained tok
 
 - `dev`: integration branch; direct app commits allowed; force-push and deletion blocked.
 - `feature/*`: optional feature branches; submit a pull request into `dev`.
-- `main`: release branch; pull request, passing Quality and Windows installer checks, resolved conversations, and linear history required, including administrators.
+- `main`: release branch; pull request, passing Quality and Windows installer checks, and resolved conversations required, including administrators.
+- Promote the long-lived `dev` branch with a merge commit, then fast-forward `dev` to `main`. This preserves shared history for the next update without force-pushing protected branches. Squash is available for short-lived feature branches.
 - Open a `dev` → `main` pull request and have Codex review it before merging. Codex review is a documented human step, not an automatically enforced integration. Required approval count is zero so a single-owner repository is not blocked by GitHub's self-approval restriction.
 
 CI runs lint, formatting, behavioral tests, production dependency audit, and installer packaging. Dependabot updates target `dev`. Reapply repository settings with `npm run repo:setup` when authenticated through `gh auth login`.

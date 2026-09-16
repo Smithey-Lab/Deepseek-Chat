@@ -2,13 +2,13 @@ $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $repo = 'Smithey-Lab/Deepseek-Chat'
 function Invoke-Gh { & gh @args; if ($LASTEXITCODE -ne 0) { throw "GitHub command failed: $($args[0])" } }
-Invoke-Gh repo edit $repo --default-branch main --enable-squash-merge --enable-rebase-merge=false --enable-merge-commit=false --delete-branch-on-merge=false --enable-issues --enable-wiki=false
+Invoke-Gh repo edit $repo --default-branch main --enable-squash-merge --enable-rebase-merge=false --enable-merge-commit --delete-branch-on-merge=false --enable-issues --enable-wiki=false
 $main = @{
   required_status_checks = @{ strict = $true; contexts = @('Quality', 'Windows installer') }
   enforce_admins = $true
   required_pull_request_reviews = @{ dismiss_stale_reviews = $true; require_code_owner_reviews = $false; required_approving_review_count = 0 }
   restrictions = $null
-  required_linear_history = $true
+  required_linear_history = $false
   allow_force_pushes = $false
   allow_deletions = $false
   required_conversation_resolution = $true
@@ -18,7 +18,7 @@ $dev = @{
   enforce_admins = $true
   required_pull_request_reviews = $null
   restrictions = $null
-  required_linear_history = $true
+  required_linear_history = $false
   allow_force_pushes = $false
   allow_deletions = $false
 }

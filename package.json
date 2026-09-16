@@ -17,7 +17,7 @@
     "format:check": "prettier --check .",
     "test": "node --test test/*.test.cjs",
     "check": "npm run lint && npm run format:check && npm test",
-    "dist": "electron-builder --win nsis --x64 --publish never",
+    "dist": "electron-builder --win nsis --x64 --publish never && node scripts/verify-installer.cjs",
     "release": "electron-builder --win nsis --x64 --publish always",
     "repo:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-repo.ps1",
     "release:patch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release.ps1",
@@ -64,6 +64,7 @@
         "repo": "Deepseek-Chat",
         "releaseType": "release"
       }
-    ]
+    ],
+    "artifactName": "DeepSeek-Workspace-Setup-${version}.${ext}"
   }
 }

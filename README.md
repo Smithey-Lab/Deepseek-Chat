@@ -21,6 +21,7 @@ Install Node.js 24 LTS and Git, then:
 npm ci
 npm start
 npm run check
+npm run test:desktop
 npm run dist
 ```
 
@@ -36,6 +37,8 @@ In **Settings & updates**, save a DeepSeek API key and a GitHub fine-grained tok
 - Open a `dev` → `main` pull request and have Codex review it before merging. Codex review is a documented human step, not an automatically enforced integration. Required approval count is zero so a single-owner repository is not blocked by GitHub's self-approval restriction.
 
 CI runs lint, formatting, behavioral tests, production dependency audit, and installer packaging. Dependabot updates target `dev`. Reapply repository settings with `npm run repo:setup` when authenticated through `gh auth login`.
+
+The desktop smoke test runs the real Electron UI with isolated temporary app data and mocked provider responses. It verifies encrypted credentials, chat persistence, text rendering, repository editing, and the dev-only review gate. It does not spend API credits or modify a real GitHub repository.
 
 ## Publish an update
 

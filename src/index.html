@@ -23,6 +23,7 @@
           ◉ &nbsp; Conversations
         </button>
         <button data-view="code" class="nav">⌘ &nbsp; GitHub & code</button>
+        <button data-view="agent" class="nav">▷ &nbsp; Agent tasks</button>
         <button data-view="settings" class="nav">
           ⚙ &nbsp; Settings & updates
         </button>
@@ -251,6 +252,91 @@
           </div>
         </div>
       </section>
+      <section id="agent-view" class="view" hidden>
+        <div class="section-intro">
+          <h2>Give it the list. Come back to review.</h2>
+          <p>
+            Select a project with a dev branch, describe the work, and authorize
+            one run. The agent reads the project and commits the completed batch
+            to dev. You decide later whether to merge.
+          </p>
+        </div>
+        <div class="card">
+          <div class="toolbar">
+            <label class="grow"
+              >Repository
+              <select id="agent-repo"></select
+            ></label>
+            <span class="badge">Target: dev only</span>
+            <button id="agent-load-repos" type="button">
+              Load repositories
+            </button>
+            <button id="agent-more-repos" type="button">
+              More repositories
+            </button>
+            <button id="agent-use-repo" type="button">
+              Use editor repository
+            </button>
+          </div>
+          <div class="toolbar">
+            <label
+              >Model
+              <select id="agent-model">
+                <option value="deepseek-chat">deepseek-chat</option>
+              </select></label
+            >
+            <button id="agent-models" type="button">Refresh models</button>
+            <label
+              >Maximum steps
+              <input
+                id="agent-budget"
+                type="number"
+                value="40"
+                min="10"
+                max="80"
+            /></label>
+          </div>
+          <label for="agent-tasks">Task list · one task per line</label>
+          <textarea
+            id="agent-tasks"
+            rows="8"
+            maxlength="30000"
+            placeholder="Add search to the existing dashboard&#10;Fix the settings save bug&#10;Add tests for the new search behavior&#10;Update the project documentation"
+          ></textarea>
+          <p class="muted">
+            Up to 30 tasks and 40 changed text files per run. Each step uses
+            your DeepSeek API account. Keep the app running; closing its window
+            during a run minimizes it. Sleep is prevented while working, but
+            shutting down interrupts the run.
+          </p>
+          <div class="toolbar">
+            <button id="agent-start" type="button" class="primary">
+              Start work on dev
+            </button>
+            <button id="agent-cancel" type="button" disabled>
+              Cancel active run
+            </button>
+            <button id="agent-refresh" type="button">Refresh reports</button>
+          </div>
+          <p id="agent-feedback" role="status" aria-live="polite"></p>
+          <p class="footnote">
+            The agent sends the task list and files it reads to DeepSeek. It
+            does not execute project code or tests. If a task is blocked, the
+            step limit is reached, or dev changes during the run, staged edits
+            are saved locally without being published. Main always requires your
+            separate review and merge.
+          </p>
+        </div>
+        <div class="agent-layout">
+          <div class="card">
+            <h3>Run history</h3>
+            <div id="agent-history"></div>
+          </div>
+          <div class="card" id="agent-detail">
+            <p>Select a run to review its report and changes.</p>
+          </div>
+        </div>
+      </section>
       <section id="settings-view" class="view" hidden>
         <div class="section-intro">
           <h2>Make this workspace yours.</h2>
@@ -340,7 +426,8 @@
         <p class="muted">
           Conversation history is stored locally as readable JSON in your
           Windows app-data folder. API credentials are encrypted separately.
-          Code is sent to DeepSeek only when you attach it and send a message.
+          Code is sent to DeepSeek when you attach it to a message or authorize
+          an agent task run.
         </p>
       </section>
     </main>
@@ -383,5 +470,6 @@
       </form>
     </dialog>
     <script src="renderer.js"></script>
+    <script src="agent-ui.js"></script>
   </body>
 </html>

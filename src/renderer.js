@@ -227,6 +227,7 @@
     $('page-title').textContent = {
       chat: 'Conversations',
       code: 'GitHub & code',
+      agent: 'Agent tasks',
       settings: 'Settings & updates',
     }[name];
     prefs().view = name;
@@ -1442,7 +1443,7 @@
     renderActivity();
     updateEditorAccess();
     view(
-      ['chat', 'code', 'settings'].includes(prefs().view)
+      ['chat', 'code', 'agent', 'settings'].includes(prefs().view)
         ? prefs().view
         : 'chat',
     );

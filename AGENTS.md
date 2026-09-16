@@ -4,7 +4,7 @@
 - Run `npm run check` and `npm run dist` for application or packaging changes.
 - Keep API keys, GitHub tokens, signing certificates, and local history out of Git.
 - Keep credentials in the main process; never expose generic IPC, shell execution, or arbitrary network endpoints to the renderer.
-- GitHub writes must remain restricted to `dev` and require a visible review plus explicit commit action.
+- GitHub writes remain restricted to `dev`. Manual editor commits require review and an explicit commit action. Agent task runs use a visible task-list authorization at start, then may commit the completed batch automatically to `dev` for later review. Never merge `main` from the app.
 - Treat model output and repository files as untrusted text. Do not execute generated code.
 - Preserve the app ID and user-data location so updates retain settings and chats.
 - Update README when user workflows, permissions, or release steps change.

@@ -6,6 +6,7 @@ const {
   dialog,
   session,
   shell,
+  powerSaveBlocker,
 } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -20,6 +21,10 @@ const {
   branchRef,
 } = require('./core.cjs');
 const { registerServices } = require('./services.cjs');
+const { createAgent, validateStart } = require('./agent.cjs');
+let agent,
+  agentStarting = false,
+  sleepBlocker;
 if (!app.isPackaged && process.env.DEEPSEEK_TEST_DATA) {
   app.setPath('userData', process.env.DEEPSEEK_TEST_DATA);
 }
@@ -129,6 +134,66 @@ app
           Buffer.from(encrypted[name], 'base64'),
         );
     }
+    agent = createAgent({
+      request,
+      readJson,
+      atomicWrite,
+      notify: (event) => {
+        if (window && !window.isDestroyed())
+          window.webContents.send('agent:status', event);
+        const run = agent.get(event);
+        if (
+          !['running', 'publishing'].includes(run.status) &&
+          sleepBlocker !== undefined
+        ) {
+          powerSaveBlocker.stop(sleepBlocker);
+          sleepBlocker = undefined;
+        }
+      },
+    });
+    await agent.init();
+    handle('agent:list', () => agent.list());
+    handle('agent:get', (input) => agent.get(input));
+    handle('agent:review', async (input) => {
+      const run = agent.get(input);
+      const repo = repoName(run.repo);
+      const metadata = await request('github', `/repos/${repo}`);
+      const base = branchRef(metadata.default_branch);
+      await shell.openExternal(
+        `https://github.com/${repo}/compare/${encodeURIComponent(base)}...dev`,
+      );
+    });
+    handle('agent:cancel', () => agent.cancel());
+    handle('agent:start', async (input) => {
+      const config = validateStart(input);
+      if (agentStarting || agent.isRunning())
+        throw new Error('An agent run is already active.');
+      if (!secrets.github || !secrets.deepseek)
+        throw new Error('Save both GitHub and DeepSeek connections first.');
+      agentStarting = true;
+      try {
+        const approval = await dialog.showMessageBox(window, {
+          type: 'question',
+          title: 'Authorize agent work on dev',
+          buttons: ['Cancel', 'Start and commit to dev'],
+          defaultId: 0,
+          cancelId: 0,
+          message: `Work on ${config.repo}:dev and publish the completed task list?`,
+          detail: `${config.tasks.join('\n')}\n\nThe agent can read project files, send them to DeepSeek, and create, edit, or delete text files. It can make up to ${config.maxSteps} model requests, billed to your API account. Completed changes will be committed to dev automatically. Main is never merged. Tests are not executed. Review the report and GitHub changes later. Keep the app open; minimizing is fine.`,
+        });
+        if (approval.response !== 1) return { cancelled: true };
+        sleepBlocker = powerSaveBlocker.start('prevent-app-suspension');
+        try {
+          return await agent.start(input);
+        } catch (error) {
+          powerSaveBlocker.stop(sleepBlocker);
+          sleepBlocker = undefined;
+          throw error;
+        }
+      } finally {
+        agentStarting = false;
+      }
+    });
     session.defaultSession.setPermissionRequestHandler(
       (_contents, _permission, callback) => callback(false),
     );
@@ -233,6 +298,10 @@ app
       };
     });
     handle('github:commit', async (input) => {
+      if (agent.isRunning())
+        throw new Error(
+          'Wait for the agent run before making an editor commit.',
+        );
       const body = commitInput(input);
       const approval = await dialog.showMessageBox(window, {
         type: 'question',
@@ -262,6 +331,10 @@ app
       await autoUpdater.downloadUpdate();
     });
     handle('update:install', () => {
+      if (agent.isRunning())
+        throw new Error(
+          'Finish or cancel the agent run before installing an update.',
+        );
       if (!updateReady) throw new Error('Download an update first.');
       autoUpdater.quitAndInstall();
     });
@@ -305,6 +378,12 @@ app
       },
     });
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    window.on('close', (event) => {
+      if (agent.isRunning()) {
+        event.preventDefault();
+        window.minimize();
+      }
+    });
     window.webContents.on('will-navigate', (event) => event.preventDefault());
     await window.loadURL(page);
   })

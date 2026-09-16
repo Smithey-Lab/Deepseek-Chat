@@ -11,6 +11,87 @@
   --warn: #d29922;
   --bad: #f85149;
 }
+.agent-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 20px;
+}
+#agent-tasks {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+}
+.agent-history-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 8px;
+  text-align: left;
+}
+.agent-history-item[data-active='true'] {
+  border-color: var(--accent);
+}
+.agent-history-meta,
+.agent-facts,
+.agent-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.agent-status {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+.agent-status-completed,
+.agent-status-done {
+  color: var(--good);
+}
+.agent-error,
+.agent-status-failed,
+.agent-status-blocked {
+  color: var(--bad);
+}
+.agent-detail-header,
+.agent-task-result-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+.agent-section {
+  margin: 16px 0;
+  padding: 12px;
+  background: var(--panel2);
+  border-radius: 8px;
+}
+.agent-facts {
+  overflow-wrap: anywhere;
+  padding-left: 18px;
+}
+.agent-change {
+  margin-top: 12px;
+}
+.agent-diff-body,
+.agent-task-detail {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 420px;
+  overflow: auto;
+  background: var(--bg);
+  padding: 12px;
+}
+.agent-log-line {
+  display: flex;
+  gap: 12px;
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+.agent-log-time {
+  color: var(--muted);
+  flex-shrink: 0;
+}
 body.light {
   --bg: #f6f8fa;
   --panel: #ffffff;

@@ -7,5 +7,5 @@ export default [
     files: ['**/*.cjs', '**/*.mjs'],
     languageOptions: { globals: globals.node },
   },
-  { files: ['src/renderer.js'], languageOptions: { globals: globals.browser } },
+  { files: ['src/*.js'], languageOptions: { globals: globals.browser } },
 ];

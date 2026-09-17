@@ -524,14 +524,12 @@ test('concurrent dev change prevents writes; no commit, no ref update', async ()
 // Model/protocol failures
 // ---------------------------------------------------------------------------
 
-test('model truncation (finish_reason length) fails and does not publish', async () => {
+test('repeated model truncation fails and does not publish', async () => {
   const { agent, gh } = makeAgent({
-    script: [
-      {
-        content: '{"action":"read","paths":["README.md"]}',
-        finish_reason: 'length',
-      },
-    ],
+    script: Array.from({ length: 3 }, () => ({
+      content: '{"action":"read","paths":["README.md"]}',
+      finish_reason: 'length',
+    })),
   });
   const started = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
   await settled(agent);
@@ -545,12 +543,16 @@ test('model truncation (finish_reason length) fails and does not publish', async
 });
 
 test('invalid JSON from model fails without publishing', async () => {
-  const { agent, gh } = makeAgent({ script: ['not json'] });
+  const { agent, gh, deepseek } = makeAgent({
+    script: Array(3).fill('not json'),
+  });
   const started = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
   await settled(agent);
   const done = agent.get({ id: started.id });
   assert.equal(done.status, 'failed');
   assert.match(done.error, /invalid JSON/i);
+  assert.equal(deepseek.calls.length, 3);
+  assert.equal(done.responseRetries, 3);
   assert.equal(
     gh.accepted.some((r) => r.endpoint.endsWith('/git/refs/heads/dev')),
     false,
@@ -559,7 +561,7 @@ test('invalid JSON from model fails without publishing', async () => {
 
 test('unknown action fails without publishing', async () => {
   const { agent } = makeAgent({
-    script: [JSON.stringify({ action: 'explode' })],
+    script: Array(3).fill(JSON.stringify({ action: 'explode' })),
   });
   const started = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
   await settled(agent);
@@ -1058,5 +1060,188 @@ test('a report save failure after publication does not claim the commit failed',
   assert.equal(
     JSON.parse(store.files['agents.json']).at(-1).status,
     'publishing',
+  );
+});
+// ---------------------------------------------------------------------------
+// JSON-response recovery
+// ---------------------------------------------------------------------------
+
+test('recovery: malformed JSON then valid write then finish publishes one commit', async () => {
+  const { agent, gh, deepseek } = makeAgent({
+    script: [
+      'not json',
+      JSON.stringify({ action: 'write', path: 'README.md', content: 'new\n' }),
+      finishAction(['x']),
+    ],
+  });
+  const run = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await settled(agent);
+  const done = agent.get({ id: run.id });
+  assert.equal(done.status, 'completed');
+  assert.equal(done.commitSha, NEW_COMMIT);
+  assert.equal(deepseek.calls.length, 3);
+  const patches = gh.accepted.filter((r) => r.options?.method === 'PATCH');
+  assert.equal(patches.length, 1);
+  assert.ok(!patches.some((p) => p.endpoint.includes('/main')));
+});
+
+test('recovery: repeated invalid JSON stops after 3 bad responses', async () => {
+  const { agent, deepseek } = makeAgent({
+    script: ['bad', 'bad', 'bad', 'bad'],
+  });
+  const run = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await settled(agent);
+  const done = agent.get({ id: run.id });
+  assert.equal(done.status, 'failed');
+  assert.match(done.error, /invalid JSON/i);
+  assert.equal(deepseek.calls.length, 3);
+  assert.equal(deepseek.remaining(), 1);
+});
+
+test('recovery: correction prompt states no action applied and no action was staged', async () => {
+  const { agent, deepseek } = makeAgent({
+    script: [
+      'not json',
+      JSON.stringify({ action: 'write', path: 'README.md', content: 'new\n' }),
+      finishAction(['x']),
+    ],
+  });
+  const run = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await settled(agent);
+  assert.equal(agent.get({ id: run.id }).status, 'completed');
+
+  const correction = deepseek.calls[1].messages;
+  const last = correction.at(-1);
+  assert.equal(last.role, 'user');
+  assert.match(last.content, /No action was applied/);
+  // rejected response must not have been appended as assistant history
+  assert.equal(
+    correction.some((m) => m.role === 'assistant' && m.content === 'not json'),
+    false,
+  );
+  // only the one applied write is in the assistant history
+  const applied = correction.filter(
+    (m) => m.role === 'assistant' && /"action":"write"/.test(m.content),
+  );
+  assert.equal(applied.length, 0);
+});
+
+test('recovery: staged files are retained through a retry', async () => {
+  const { agent, deepseek } = makeAgent({
+    script: [
+      JSON.stringify({
+        action: 'write',
+        path: 'README.md',
+        content: 'staged\n',
+      }),
+      'oops',
+      finishAction(['x']),
+    ],
+  });
+  const run = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await settled(agent);
+  const done = agent.get({ id: run.id });
+  assert.equal(done.status, 'completed');
+  assert.equal(done.changes.length, 1);
+  assert.equal(done.changes[0].after, 'staged\n');
+  // the staged write survives and is committed
+  assert.equal(done.commitSha, NEW_COMMIT);
+  assert.equal(deepseek.remaining(), 0);
+});
+
+test('recovery: maxSteps caps recovery attempts', async () => {
+  const { agent, deepseek } = makeAgent({
+    script: [
+      ...Array(9).fill(
+        JSON.stringify({ action: 'read', paths: ['README.md'] }),
+      ),
+      'bad',
+      finishAction(['x']),
+    ],
+  });
+  const run = await agent.start({
+    repo: 'a/b',
+    tasks: 'x',
+    model: 'm',
+    maxSteps: 10,
+  });
+  await settled(agent);
+  const done = agent.get({ id: run.id });
+  assert.equal(done.status, 'failed');
+  // The invalid response at the final step must not trigger an eleventh request.
+  assert.equal(deepseek.calls.length, 10);
+  assert.match(done.error, /recover|invalid JSON/i);
+});
+
+test('recovery: partially fenced / trailing-prose responses are not parses the model can slip through', async () => {
+  const { agent, deepseek } = makeAgent({
+    script: [
+      '```json\n{"action":"read","paths":["README.md"]}\n```\ntrailing',
+      JSON.stringify({ action: 'read', paths: ['README.md'] }),
+      finishAction(['x']),
+    ],
+  });
+  const run = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await settled(agent);
+  const done = agent.get({ id: run.id });
+  assert.equal(done.status, 'completed');
+  // first response rejected as not-a-whole-fence
+  assert.equal(deepseek.calls.length, 3);
+});
+
+test('recovery: wholly fenced object preserves code strings verbatim', async () => {
+  const content = '```js\nconst x = "quote";\n```\nC:\\file';
+  const action = { action: 'write', path: 'new.js', content };
+  const { agent, gh } = makeAgent({
+    script: [
+      '```json\n' + JSON.stringify(action) + '\n```',
+      finishAction(['x']),
+    ],
+  });
+  const run = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await settled(agent);
+  const done = agent.get({ id: run.id });
+  assert.equal(done.status, 'completed');
+  assert.equal(done.changes[0].after, content);
+  const blobReq = gh.accepted.find(
+    (r) => r.endpoint.endsWith('/git/blobs') && r.options.method === 'POST',
+  );
+  assert.equal(JSON.parse(blobReq.options.body).content, content);
+});
+
+test('recovery: cancellation during a retry stops the run', async () => {
+  let calls = 0;
+  const gh = makeGitHub();
+  const ds = {
+    request: (service, endpoint, options) => {
+      assert.equal(service, 'deepseek');
+      calls++;
+      if (calls === 1)
+        return Promise.resolve({
+          choices: [{ finish_reason: 'stop', message: { content: 'bad' } }],
+          usage: {},
+        });
+      return new Promise((resolve, reject) => {
+        options.signal.addEventListener(
+          'abort',
+          () => reject(new Error('Run cancelled.')),
+          { once: true },
+        );
+      });
+    },
+  };
+  const store = makeStore();
+  const { request } = makeRequest(gh, ds);
+  const agent = createAgent({ request, ...store });
+  const run = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await until(() => calls === 2, 'second deepseek call');
+  agent.cancel();
+  await settled(agent);
+  const done = agent.get({ id: run.id });
+  assert.equal(done.status, 'cancelled');
+  assert.equal(done.commitSha, null);
+  assert.equal(
+    gh.accepted.some((r) => r.options?.method === 'PATCH'),
+    false,
   );
 });

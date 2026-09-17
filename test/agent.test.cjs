@@ -1328,3 +1328,67 @@ test('recovery: cancellation during a retry stops the run', async () => {
     false,
   );
 });
+
+for (const bad of [
+  { action: 'read' },
+  { action: 'read', path: 'src/index.js' },
+  { action: 'read', paths: 'src/index.js' },
+  { action: 'read', paths: [] },
+  { action: 'read', paths: Array(6).fill('src/index.js') },
+  { action: 'read', paths: ['src/index.js', null] },
+  { action: 'read', paths: ['src/index.js'], offset: -1 },
+  { action: 'read', paths: ['src/index.js'], offset: '0' },
+  { action: 'list', offset: 0.5 },
+  { action: 'write', path: 'new.txt', content: null },
+  { action: 'replace', path: 'README.md', oldText: '', newText: 'x' },
+]) {
+  test(`action recovery preserves staged work: ${JSON.stringify(bad)}`, async () => {
+    const content = 'exact staged bytes\n';
+    const { agent, gh, deepseek } = makeAgent({
+      script: [
+        JSON.stringify({ action: 'write', path: 'new.txt', content }),
+        JSON.stringify(bad),
+        JSON.stringify({ action: 'read', paths: ['README.md'] }),
+        finishAction(['x']),
+      ],
+    });
+    await agent.init();
+    const run = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+    await settled(agent);
+    const done = agent.get({ id: run.id });
+    assert.equal(done.status, 'completed', done.error);
+    assert.equal(done.responseRetries, 1);
+    assert.equal(done.changes[0].after, content);
+    assert.equal(deepseek.calls.length, 4);
+    assert.match(
+      deepseek.calls[2].messages.at(-1).content,
+      /No action was applied/,
+    );
+    assert.equal(
+      gh.accepted.filter((c) => c.endpoint.endsWith('/git/blobs/' + hex('8')))
+        .length,
+      0,
+    );
+    assert.equal(
+      gh.accepted.filter((c) => c.options.method === 'PATCH').length,
+      1,
+    );
+  });
+}
+
+test('repeated malformed reads stop within recovery limit without publishing', async () => {
+  const { agent, gh, deepseek } = makeAgent({
+    script: Array(3).fill(JSON.stringify({ action: 'read', paths: [] })),
+  });
+  await agent.init();
+  const run = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await settled(agent);
+  const done = agent.get({ id: run.id });
+  assert.equal(done.status, 'failed');
+  assert.match(done.error, /Read requires/);
+  assert.equal(deepseek.calls.length, 3);
+  assert.equal(
+    gh.accepted.filter((c) => c.options.method === 'PATCH').length,
+    0,
+  );
+});

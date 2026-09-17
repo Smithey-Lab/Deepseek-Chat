@@ -18,7 +18,11 @@ function parseAgentResponse(choice) {
   }
   if (!action || Array.isArray(action) || typeof action !== 'object')
     throw new Error('Model response must be one JSON action object');
-  if (!['read', 'write', 'delete', 'finish'].includes(action.action))
+  if (
+    !['read', 'list', 'write', 'replace', 'delete', 'finish'].includes(
+      action.action,
+    )
+  )
     throw new Error('Model response has an unknown action');
   return action;
 }

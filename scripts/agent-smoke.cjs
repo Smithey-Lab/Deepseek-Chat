@@ -94,9 +94,10 @@ const path = require('node:path');
           const actions = [
             'I will inspect the project now.',
             {
-              action: 'write',
+              action: 'replace',
               path: 'README.md',
-              content: 'Updated documentation',
+              oldText: 'old',
+              newText: 'Updated documentation',
             },
             {
               action: 'write',

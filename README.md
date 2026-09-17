@@ -4,6 +4,8 @@ A Windows desktop workspace for DeepSeek conversations and a deliberate GitHub c
 
 ## v0.3 agent workspace
 
+v0.3.1 fixes premature failures on model response formatting: it accepts a complete JSON object inside a single code block and asks the model to correct malformed, empty, or truncated replies up to twice consecutively. Retries count toward the chosen step limit and appear in the run log. Rejected responses never change files; staged edits survive recovery attempts. If recovery fails, no commit is published. After updating, start a new run with your saved task list; an old failed run is not automatically resumed.
+
 In **Agent tasks**, load repositories (or use the editor's repository), select a model, and enter up to 30 tasks, one per line. Click **Start work on dev** and approve the task list once. The agent reads the existing project, follows applicable `AGENTS.md` files, and stages coordinated additions, edits, and deletions. On completion it publishes one commit to `dev` automatically. The app never merges `main`.
 
 Come back to **Run history** to inspect task results, logs, and before/after file contents. Open GitHub to review `dev` against `main` with Codex and decide whether to merge. Completion is the model's implementation report, not a guarantee of correctness: **the agent does not execute code or tests**. Repository CI remains the validation step before merging.

@@ -92,6 +92,7 @@ const path = require('node:path');
             );
           }
           const actions = [
+            'I will inspect the project now.',
             {
               action: 'write',
               path: 'README.md',
@@ -124,7 +125,11 @@ const path = require('node:path');
               {
                 finish_reason: 'stop',
                 message: {
-                  content: JSON.stringify(actions[state.modelStep++]),
+                  content: (() => {
+                    const action = actions[state.modelStep++];
+                    if (typeof action === 'string') return action;
+                    return '```json\n' + JSON.stringify(action) + '\n```';
+                  })(),
                 },
               },
             ],
@@ -181,6 +186,10 @@ const path = require('node:path');
     await expect(page.locator('#agent-cancel')).toBeDisabled();
     const state = await desktop.evaluate(() => globalThis.agentSmoke);
     assert.equal(state.patches, 1);
+    assert.equal(state.modelStep, 4);
+    await expect(page.locator('#agent-detail')).toContainText(
+      'Requesting a corrected response',
+    );
     assert.equal(
       state.requests.some((r) => r.path.includes('/heads/main')),
       false,

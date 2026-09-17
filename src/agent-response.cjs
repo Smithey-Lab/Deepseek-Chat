@@ -1,4 +1,43 @@
 // Decode only a complete JSON object. Never evaluate code or guess at repairs.
+const { filePath } = require('./core.cjs');
+function validateAction(action) {
+  if (['read', 'list'].includes(action.action)) {
+    if (
+      action.offset !== undefined &&
+      (!Number.isSafeInteger(action.offset) || action.offset < 0)
+    )
+      throw new Error('Read/list offset must be a non-negative integer');
+  }
+  if (action.action === 'read') {
+    if (
+      !Array.isArray(action.paths) ||
+      action.paths.length < 1 ||
+      action.paths.length > 5
+    )
+      throw new Error(
+        'Read requires 1–5 file paths in a paths array; split larger reads into separate actions',
+      );
+    // Validate the whole batch before fetching any file.
+    action.paths.forEach(filePath);
+  }
+  if (['write', 'replace', 'delete'].includes(action.action))
+    filePath(action.path);
+  if (
+    action.action === 'write' &&
+    (typeof action.content !== 'string' ||
+      Buffer.byteLength(action.content) > 100000 ||
+      action.content.includes('\0'))
+  )
+    throw new Error('Write requires UTF-8 text under 100 KB');
+  if (
+    action.action === 'replace' &&
+    (typeof action.oldText !== 'string' ||
+      !action.oldText ||
+      typeof action.newText !== 'string')
+  )
+    throw new Error('Replace requires nonempty oldText and string newText');
+  return action;
+}
 function parseAgentResponse(choice) {
   if (choice?.finish_reason !== 'stop')
     throw new Error('Model response was incomplete');
@@ -24,6 +63,6 @@ function parseAgentResponse(choice) {
     )
   )
     throw new Error('Model response has an unknown action');
-  return action;
+  return validateAction(action);
 }
 module.exports = { parseAgentResponse };

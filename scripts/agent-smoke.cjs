@@ -104,6 +104,8 @@ const path = require('node:path');
               path: 'src/new.js',
               content: 'export const answer = 42;',
             },
+            { action: 'read', paths: Array(6).fill('README.md') },
+            { action: 'read', paths: ['README.md'] },
             {
               action: 'finish',
               summary: 'Updated docs and added the new module.',
@@ -187,7 +189,7 @@ const path = require('node:path');
     await expect(page.locator('#agent-cancel')).toBeDisabled();
     const state = await desktop.evaluate(() => globalThis.agentSmoke);
     assert.equal(state.patches, 1);
-    assert.equal(state.modelStep, 4);
+    assert.equal(state.modelStep, 6);
     await expect(page.locator('#agent-detail')).toContainText(
       'Requesting a corrected response',
     );

@@ -84,3 +84,5 @@ Credentials are encrypted using Electron `safeStorage` (Windows DPAPI) and are n
 2. Local clones, resumable runs, and richer patch review.
 3. Explicitly approved tools, sandboxed execution, and test feedback.
 4. Signed releases and end-to-end update testing across two published versions.
+
+Version 0.3.3 validates model action fields before execution. Malformed read batches, offsets, and edit payloads use the same bounded correction retries as invalid JSON, preserving staged edits. Invalid read batches are rejected before any file fetch. Repeated malformed replies still stop after three consecutive failures or the selected step limit. Automated coverage includes malformed-action recovery in both the agent integration tests and the desktop workflow; model and GitHub responses in these tests are simulated.

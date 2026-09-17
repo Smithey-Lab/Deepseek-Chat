@@ -957,6 +957,89 @@ test('get throws for unknown run ids', async () => {
   assert.throws(() => agent.get({ id: 'nope' }), /Run not found/);
 });
 
+test('long investigation compacts context and publishes preserved staged bytes once', async () => {
+  const content = 'staged output\n'.repeat(5000);
+  const { agent, gh, deepseek } = makeAgent({
+    ghState: {
+      blobs: {
+        ...BLOBS,
+        [BLOB2_SHA]: encode('read data "quoted"\n'.repeat(4000)),
+      },
+    },
+    script: [
+      JSON.stringify({ action: 'write', path: 'new.txt', content }),
+      ...Array(15).fill(
+        JSON.stringify({ action: 'read', paths: Array(5).fill('README.md') }),
+      ),
+      finishAction(['x']),
+    ],
+  });
+  const started = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await settled(agent);
+  const done = agent.get({ id: started.id });
+  assert.equal(done.status, 'completed', done.error);
+  assert.ok(done.contextCompactions > 0);
+  assert.equal(done.changes[0].after, content);
+  assert.ok(
+    deepseek.calls.every((c) => JSON.stringify(c.messages).length <= 220000),
+  );
+  const blobs = gh.accepted.filter(
+    (c) => c.endpoint.endsWith('/git/blobs') && c.options.method === 'POST',
+  );
+  assert.equal(JSON.parse(blobs[0].options.body).content, content);
+  assert.equal(
+    gh.accepted.filter((c) => c.options.method === 'PATCH').length,
+    1,
+  );
+});
+
+test('paged read and exact replacement preserve unseen file contents', async () => {
+  const original = 'x'.repeat(7000) + 'unique target' + 'y'.repeat(9000);
+  const { agent, deepseek } = makeAgent({
+    ghState: { blobs: { ...BLOBS, [BLOB2_SHA]: encode(original) } },
+    script: [
+      JSON.stringify({ action: 'read', paths: ['README.md'], offset: 4000 }),
+      JSON.stringify({
+        action: 'replace',
+        path: 'README.md',
+        oldText: 'unique target',
+        newText: 'changed',
+      }),
+      finishAction(['x']),
+    ],
+  });
+  const started = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await settled(agent);
+  const done = agent.get({ id: started.id });
+  assert.equal(done.status, 'completed', done.error);
+  assert.equal(
+    done.changes[0].after,
+    original.replace('unique target', 'changed'),
+  );
+  const page = JSON.parse(deepseek.calls[1].messages.at(-1).content)[0];
+  assert.equal(page.offset, 4000);
+  assert.equal(page.nextOffset, 8000);
+});
+
+test('full write after a partial read is rejected without losing the file', async () => {
+  const { agent } = makeAgent({
+    ghState: { blobs: { ...BLOBS, [BLOB2_SHA]: encode('x'.repeat(9000)) } },
+    script: [
+      JSON.stringify({
+        action: 'write',
+        path: 'README.md',
+        content: 'missing the unread part',
+      }),
+      finishAction(['x'], 'blocked'),
+    ],
+  });
+  const started = await agent.start({ repo: 'a/b', tasks: 'x', model: 'm' });
+  await settled(agent);
+  const done = agent.get({ id: started.id });
+  assert.equal(done.status, 'blocked');
+  assert.equal(done.changes.length, 0);
+});
+
 test('rewriting, reading staged content, and reverting preserve the true original', async () => {
   const { agent, deepseek } = makeAgent({
     script: [

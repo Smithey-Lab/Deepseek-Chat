@@ -4,6 +4,8 @@ A Windows desktop workspace for DeepSeek conversations and a deliberate GitHub c
 
 ## v0.3 agent workspace
 
+v0.3.2 fixes accumulated context overflow during project investigation. Older conversation content is compacted while the original task list and staged edits remain intact. File and repository listings are paged, and the agent can make exact, unique text replacements without repeating an entire file. A full rewrite requires every page of the current file to have been read. Compaction events appear in the run log; the existing step, file-size, and change-count limits still apply. Start a new run after updating to use this behavior.
+
 v0.3.1 fixes premature failures on model response formatting: it accepts a complete JSON object inside a single code block and asks the model to correct malformed, empty, or truncated replies up to twice consecutively. Retries count toward the chosen step limit and appear in the run log. Rejected responses never change files; staged edits survive recovery attempts. If recovery fails, no commit is published. After updating, start a new run with your saved task list; an old failed run is not automatically resumed.
 
 In **Agent tasks**, load repositories (or use the editor's repository), select a model, and enter up to 30 tasks, one per line. Click **Start work on dev** and approve the task list once. The agent reads the existing project, follows applicable `AGENTS.md` files, and stages coordinated additions, edits, and deletions. On completion it publishes one commit to `dev` automatically. The app never merges `main`.

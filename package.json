@@ -24,7 +24,7 @@
     "test:desktop": "node scripts/smoke.cjs && node scripts/agent-smoke.cjs"
   },
   "dependencies": {
-    "electron-updater": "6.8.9"
+    "electron-updater": "6.8.11"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
